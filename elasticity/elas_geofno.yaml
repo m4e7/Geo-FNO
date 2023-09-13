@@ -1,0 +1,18 @@
+data_directory: "C:/Users/orang/experimental/Geo-FNO/data"
+filepath_sigma: "Meshes/Random_UnitCell_sigma_10.npy"
+filepath_xy: "Meshes/Random_UnitCell_XY_10.npy"
+filepath_rr: "Meshes/Random_UnitCell_rr_10.npy"
+
+n_total: 2000
+n_train: 1000
+n_test: 200
+
+batch_size: 20
+learning_rate: 0.001
+
+epochs: 500
+step_size: 50
+gamma: 0.5
+
+modes: 12
+width: 32
