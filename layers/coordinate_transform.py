@@ -1,4 +1,9 @@
-from torch.nn import  Module
+import numpy as np
+import torch
+from torch.nn import Module, Linear
+
+from utilities3 import device
+
 
 class CoordinateTransform(Module):
     def __init__(self, width=32):
@@ -8,16 +13,15 @@ class CoordinateTransform(Module):
         inverse phi: x -> xi
         """
         self.width = width
-        self.fc0 = nn.Linear(4, self.width)
-        self.fc_code = nn.Linear(42, self.width)
-        self.fc_no_code = nn.Linear(3 * self.width, 4 * self.width)
-        self.fc1 = nn.Linear(4 * self.width, 4 * self.width)
-        self.fc2 = nn.Linear(4 * self.width, 4 * self.width)
-        self.fc3 = nn.Linear(4 * self.width, 4 * self.width)
-        self.fc4 = nn.Linear(4 * self.width, 2)
+        self.fc0 = Linear(4, self.width)
+        self.fc_code = Linear(42, self.width)
+        self.fc_no_code = Linear(3 * self.width, 4 * self.width)
+        self.fc1 = Linear(4 * self.width, 4 * self.width)
+        self.fc2 = Linear(4 * self.width, 4 * self.width)
+        self.fc3 = Linear(4 * self.width, 4 * self.width)
+        self.fc4 = Linear(4 * self.width, 2)
         self.activation = torch.tanh
-        self.center = (torch.tensor([0.0001, 0.0001], device=device)
-                       .reshape(1, 1, 2))
+        self.center = torch.tensor([0.0001, 0.0001], device=device).reshape(1, 1, 2)
 
         self.B = np.pi * torch.pow(
             2, torch.arange(0, self.width // 4, dtype=torch.float, device=device)
@@ -41,7 +45,7 @@ class CoordinateTransform(Module):
         xd = self.fc0(xd)
         xd = torch.cat([xd, x_sin, x_cos], dim=-1).reshape(b, n, 3 * self.width)
 
-        if code != None:
+        if code is not None:
             cd = self.fc_code(code)
             cd = cd.unsqueeze(1).repeat(1, xd.shape[1], 1)
             xd = torch.cat([cd, xd], dim=-1)
@@ -56,4 +60,3 @@ class CoordinateTransform(Module):
         xd = self.activation(xd)
         xd = self.fc4(xd)
         return x + x * xd
-

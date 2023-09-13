@@ -13,13 +13,10 @@ import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 
-from utilities3 import count_params, LpLoss
+from utilities3 import count_params, LpLoss, device
 from models import FNO2d
 from layers import CoordinateTransform
 
-
-# device = "cuda"
-device = "cpu"
 
 np.random.seed(0)
 torch.manual_seed(0)

@@ -101,7 +101,7 @@ class FNO2d(Module):
             x_in = u
         if self.is_mesh and x_out is None:
             x_out = u
-        grid = self.get_grid([u.shape[0], self.s1, self.s2], u.device).permute(
+        grid = FNO2d.get_grid([u.shape[0], self.s1, self.s2], u.device).permute(
             0, 3, 1, 2
         )
 
@@ -141,7 +141,8 @@ class FNO2d(Module):
         u = self.fc2(u)
         return u
 
-    def get_grid(self, shape, device):
+    @staticmethod
+    def get_grid(shape, device):
         batch_size, size_x, size_y = shape[0], shape[1], shape[2]
 
         grid_x = torch.tensor(

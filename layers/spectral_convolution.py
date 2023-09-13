@@ -48,7 +48,8 @@ class SpectralConv2d(Module):
         )
 
     # Complex multiplication
-    def compl_mul2d(self, input, weights):
+    @staticmethod
+    def compl_mul2d(input, weights):
         # (batch, in_channel, x,y ), (in_channel, out_channel, x,y) -> (batch, out_channel, x,y)
         return torch.einsum("bixy,ioxy->boxy", input, weights)
 
@@ -67,10 +68,10 @@ class SpectralConv2d(Module):
 
         # Multiply relevant Fourier modes
         # print(u.shape, u_ft.shape)
-        factor1 = self.compl_mul2d(
+        factor1 = SpectralConv2d.compl_mul2d(
             u_ft[:, :, : self.modes1, : self.modes2], self.weights1
         )
-        factor2 = self.compl_mul2d(
+        factor2 = SpectralConv2d.compl_mul2d(
             u_ft[:, :, -self.modes1 :, : self.modes2], self.weights2
         )
 
@@ -131,28 +132,28 @@ class SpectralConv2d(Module):
         )
 
         # print(x_in.shape)
-        if iphi == None:
+        if iphi is None:
             x = x_in
         else:
             x = iphi(x_in, code)
 
         # print(x.shape)
-        # K = <y, k_x>,  (batch, N, m1, m2)
-        K1 = torch.outer(x[..., 0].view(-1), k_x1.view(-1)).reshape(
+        # k = <y, k_x>,  (batch, N, m1, m2)
+        k1 = torch.outer(x[..., 0].view(-1), k_x1.view(-1)).reshape(
             batch_size, N, m1, m2
         )
-        K2 = torch.outer(x[..., 1].view(-1), k_x2.view(-1)).reshape(
+        k2 = torch.outer(x[..., 1].view(-1), k_x2.view(-1)).reshape(
             batch_size, N, m1, m2
         )
-        K = K1 + K2
+        k = k1 + k2
 
         # basis (batch, N, m1, m2)
-        basis = torch.exp(-1j * 2 * np.pi * K).to(device)
+        basis = torch.exp(-1j * 2 * np.pi * k).to(device)
 
-        # Y (batch, channels, N)
+        # y (batch, channels, N)
         u = u + 0j
-        Y = torch.einsum("bcn,bnxy->bcxy", u, basis)
-        return Y
+        y = torch.einsum("bcn,bnxy->bcxy", u, basis)
+        return y
 
     def ifft2d(self, u_ft, x_out, iphi=None, code=None):
         # u_ft (batch, channels, kmax, kmax)
@@ -196,23 +197,22 @@ class SpectralConv2d(Module):
         else:
             x = iphi(x_out, code)
 
-        # K = <y, k_x>,  (batch, N, m1, m2)
-        K1 = torch.outer(x[:, :, 0].view(-1), k_x1.view(-1)).reshape(
+        # k = <y, k_x>,  (batch, N, m1, m2)
+        k1 = torch.outer(x[:, :, 0].view(-1), k_x1.view(-1)).reshape(
             batch_size, N, m1, m2
         )
-        K2 = torch.outer(x[:, :, 1].view(-1), k_x2.view(-1)).reshape(
+        k2 = torch.outer(x[:, :, 1].view(-1), k_x2.view(-1)).reshape(
             batch_size, N, m1, m2
         )
-        K = K1 + K2
+        k = k1 + k2
 
         # basis (batch, N, m1, m2)
-        basis = torch.exp(1j * 2 * np.pi * K).to(device)
+        basis = torch.exp(1j * 2 * np.pi * k).to(device)
 
         # coeff (batch, channels, m1, m2)
         u_ft2 = u_ft[..., 1:].flip(-1, -2).conj()
         u_ft = torch.cat([u_ft, u_ft2], dim=-1)
 
-        # Y (batch, channels, N)
-        Y = torch.einsum("bcxy,bnxy->bcn", u_ft, basis)
-        Y = Y.real
-        return Y
+        # y (batch, channels, N)
+        y = torch.einsum("bcxy,bnxy->bcn", u_ft, basis)
+        return y.real
