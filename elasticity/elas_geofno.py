@@ -1,6 +1,17 @@
+# %matplotlib inline
+
+# + [markdown]
 """
-@author: Zongyi Li, Daniel Zhengyu Huang, Mogab Elleithy
+Authored by: Zongyi Li, Daniel Zhengyu Huang, Mogab Elleithy
 """
+# +
+# import sys
+# import pprint
+
+# sys.path.insert(0, "/home/mogab/code/experimental/Geo-FNO")
+# pprint.pprint(sys.path)
+
+# +
 from pathlib import Path
 from typing import NamedTuple
 
@@ -25,9 +36,8 @@ if device == "cuda":
 torch.backends.cudnn.deterministic = True
 
 
-################################################################
-# configs
-################################################################
+# -
+
 class Config(NamedTuple):
     data_directory: Path
     filepath_sigma: str
@@ -68,11 +78,10 @@ class Config(NamedTuple):
         )
 
 
-################################################################
-# load data and data normalization
-################################################################
+# Load and normalize the data:
+# +
 cfg = Config.from_yaml(
-    "C:\\Users\\orang\\experimental\\Geo-FNO\\elasticity\\elas_geofno.yaml"
+    "/home/mogab/code/experimental/Geo-FNO/elasticity/elas_geofno.yaml"
 )
 
 input_rr = np.load(cfg.data_directory / cfg.filepath_rr)
@@ -89,7 +98,12 @@ test_s = input_s[-cfg.n_test :]
 train_xy = input_xy[: cfg.n_train]
 test_xy = input_xy[-cfg.n_test :]
 
-print(train_rr.shape, train_s.shape, train_xy.shape)
+print(
+    f"rr.shape = {train_rr.shape}",
+    f"sigma.shape = {train_s.shape}",
+    f"xy.shape = {train_xy.shape}",
+    sep='\n'
+)
 
 train_loader = DataLoader(
     TensorDataset(train_rr, train_s, train_xy),
@@ -102,10 +116,8 @@ test_loader = DataLoader(
     shuffle=False,
 )
 
+# -
 
-################################################################
-# training and evaluation
-################################################################
 def show_subplots(xy, truth, pred):
     lims = dict(
         cmap="RdBu_r",
@@ -113,15 +125,21 @@ def show_subplots(xy, truth, pred):
         vmax=truth.max(),
         edgecolor="w",
         lw=0.1,
+        alpha=0.8,
     )
 
+    error = np.square(truth - pred)
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
     ax[0].scatter(xy[:, 0], xy[:, 1], 100, truth, **lims)
     ax[1].scatter(xy[:, 0], xy[:, 1], 100, pred, **lims)
-    ax[2].scatter(xy[:, 0], xy[:, 1], 100, truth - pred, **lims)
+    # ax[2].scatter(xy[:, 0], xy[:, 1], 100, truth - pred, **lims)
+    ax[2].scatter(xy[:, 0], xy[:, 1], 100, error, **lims)
+    # for _ax in ax: 
+    #     _ax.legend()
     fig.show()
 
 
+# Train and evaluate the model:
 model = FNO2d(
     cfg.modes,
     cfg.modes,
@@ -131,10 +149,21 @@ model = FNO2d(
 ).to(device)
 model_iphi = CoordinateTransform().to(device)
 print(
-    f"FNO parameter count: {count_params(model)}\n",
+    f"FNO parameter count: {count_params(model)}",
     f"Coordinate transformation (inverse Phi) "
     f"parameter count: {count_params(model_iphi)}",
+    sep='\n'
 )
+
+# +
+header_strings = (
+  'Epoch',
+  'Duration',
+  'Training L2',
+  'Training Error (reg)',
+  'Testing L2',
+)
+HEADER = ' | '.join(header_strings)
 
 params = list(model.parameters()) + list(model_iphi.parameters())
 optimizer = Adam(params, lr=cfg.learning_rate, weight_decay=1e-4)
@@ -146,6 +175,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 
 lp_loss = LpLoss(size_average=False)
 N_sample = 1000
+
 for ep in range(cfg.epochs):
     model.train()
     t1 = default_timer()
@@ -188,7 +218,14 @@ for ep in range(cfg.epochs):
     test_l2 /= cfg.n_test
 
     t2 = default_timer()
-    print(ep, t2 - t1, train_l2, train_reg, test_l2)
+    if ep % 100 == 0:
+        print(HEADER)
+    
+    if ep % 10 == 0:
+        row = ' | '.join(
+            [f'{ep:{len(header_strings[0])}d}', f'{t2 - t1:{len(header_strings[1])}.3f}'] + 
+            [f'{x:{len(s)}.6f}' for s, x in zip(header_strings[2:], (train_l2, train_reg, test_l2))])
+        print(row)
 
     if ep % 100 == 0:
         show_subplots(
@@ -202,3 +239,16 @@ show_subplots(
     sigma[-1].squeeze().detach().cpu().numpy(),
     out[-1].squeeze().detach().cpu().numpy(),
 )
+
+# +
+xy = mesh[-1].squeeze().detach().cpu().numpy()
+truth = sigma[-1].squeeze().detach().cpu().numpy()
+pred = out[-1].squeeze().detach().cpu().numpy()
+error2 = np.square(truth - pred)
+relative_error2 = error / truth
+
+print(f"{min(truth):6.3f} <= truth  <= {max(truth):.3f}")
+print(f"{min(error2):6.3f} <= error2 <= {max(error2):.3f}")
+print(f"{min(relative_error2):.3f} <= relative_error2 <= {max(relative_error2):.3f}")
+
+show_subplots(xy, truth, pred)
